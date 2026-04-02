@@ -19,16 +19,14 @@ jobs:
       - name: Install Neovim
         run: |
           if [ "${{ matrix.nvim-version }}" = "nightly" ]; then
-            curl -LO https://github.com/neovim/neovim/releases/download/nightly/nvim-linux64.tar.gz
-            sudo rm -rf /opt/nvim
-            sudo tar -C /opt -xzf nvim-linux64.tar.gz
-            sudo ln -sf /opt/nvim-linux64/bin/nvim /usr/local/bin/nvim
+            URL="https://github.com/neovim/neovim/releases/download/nightly/nvim-linux-x86_64.tar.gz"
           else
-            curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim-linux64.tar.gz
-            sudo rm -rf /opt/nvim
-            sudo tar -C /opt -xzf nvim-linux64.tar.gz
-            sudo ln -sf /opt/nvim-linux64/bin/nvim /usr/local/bin/nvim
+            URL="https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz"
           fi
+          curl -sL -o nvim.tar.gz "$URL"
+          sudo rm -rf /opt/nvim
+          sudo tar -C /opt -xzf nvim.tar.gz
+          sudo ln -sf /opt/nvim-linux-x86_64/bin/nvim /usr/local/bin/nvim
           nvim --version
 
       - name: Run tests
@@ -45,10 +43,10 @@ jobs:
 
       - name: Install Neovim
         run: |
-          curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim-linux64.tar.gz
+          curl -sL -o nvim.tar.gz https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz
           sudo rm -rf /opt/nvim
-          sudo tar -C /opt -xzf nvim-linux64.tar.gz
-          sudo ln -sf /opt/nvim-linux64/bin/nvim /usr/local/bin/nvim
+          sudo tar -C /opt -xzf nvim.tar.gz
+          sudo ln -sf /opt/nvim-linux-x86_64/bin/nvim /usr/local/bin/nvim
           nvim --version
 
       - name: Check Lua syntax
