@@ -20,13 +20,6 @@ function M.setup(opts)
 	comments.setup_highlights()
 	comments.set_config({ sign_column = M.config.sign_column })
 
-	-- Helper to get visual selection range
-	local function get_visual_range()
-		local start_pos = vim.fn.getpos("'<")
-		local end_pos = vim.fn.getpos("'>")
-		return start_pos[2], end_pos[2] -- line numbers
-	end
-
 	-- Normal mode: comment current line
 	vim.keymap.set("n", "<leader>ca", function()
 		vim.ui.input({ prompt = "Comment: " }, function(input)
@@ -38,7 +31,11 @@ function M.setup(opts)
 
 	-- Visual mode: comment selected range
 	vim.keymap.set("v", "<leader>ca", function()
-		local start_line, end_line = get_visual_range()
+		-- Exit visual mode first
+		vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false)
+		-- Get selection range (marks are updated after exiting visual mode)
+		local start_line = vim.fn.line("'<")
+		local end_line = vim.fn.line("'>")
 		vim.ui.input({ prompt = "Comment on lines " .. start_line .. "-" .. end_line .. ": " }, function(input)
 			if input then
 				comments.add_comment(nil, start_line, end_line, input)
