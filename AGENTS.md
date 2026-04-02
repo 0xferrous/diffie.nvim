@@ -38,3 +38,18 @@ just dev            # Manual testing with test_init.lua
 - `tests/minimal_init.lua` - Bootstraps plenary.nvim and test helpers
 - `tests/comments_spec.lua` - State management and renderer tests
 - Use `create_test_buffer()` helper to create buffers with content for extmark tests
+
+## Documentation maintenance
+
+**Always keep README.md in sync with code changes.** When modifying:
+
+- **API changes** → Update Usage section and Configuration examples
+- **New features** → Add to Features list with description
+- **Removed features** → Remove from all sections
+- **Keymap changes** → Update keymaps table and Configuration section
+- **New config options** → Add to Configuration section with defaults
+
+**Before completing a task:**
+1. Review README for outdated information
+2. Update any sections affected by your changes
+3. Ensure examples in README still work with current API
