@@ -6,6 +6,13 @@ local comments = require("diffie.comments")
 M.config = {
 	enabled = true,
 	sign_column = true, -- Show sign column indicators
+	-- Keymap configuration: set to false to disable a keymap, or change the keys
+	keymaps = {
+		add = "<leader>ca",          -- Add comment (normal: current line, visual: selection)
+		edit = "<leader>ce",         -- Edit comment
+		delete = "<leader>cd",       -- Delete comment
+		toggle_collapsed = "<leader>cc", -- Toggle collapsed status
+	},
 }
 
 --- Setup function
@@ -20,17 +27,28 @@ function M.setup(opts)
 	comments.setup_highlights()
 	comments.set_config({ sign_column = M.config.sign_column })
 
+	local keymaps = M.config.keymaps
+
+	-- Helper to safely set keymaps (skips if keymap is false)
+	local function set_keymap(mode, cfg_key, rhs, desc)
+		if not keymaps or keymaps[cfg_key] == false then
+			return
+		end
+		local lhs = keymaps[cfg_key]
+		vim.keymap.set(mode, lhs, rhs, { desc = desc })
+	end
+
 	-- Normal mode: comment current line
-	vim.keymap.set("n", "<leader>ca", function()
+	set_keymap("n", "add", function()
 		vim.ui.input({ prompt = "Comment: " }, function(input)
 			if input then
 				comments.add_comment(nil, nil, nil, input)
 			end
 		end)
-	end, { desc = "Add review comment" })
+	end, "Add review comment")
 
 	-- Visual mode: comment selected range
-	vim.keymap.set("v", "<leader>ca", function()
+	set_keymap("v", "add", function()
 		-- Exit visual mode first
 		vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false)
 		-- Get selection range (marks are updated after exiting visual mode)
@@ -41,10 +59,10 @@ function M.setup(opts)
 				comments.add_comment(nil, start_line, end_line, input)
 			end
 		end)
-	end, { desc = "Add review comment on selection" })
+	end, "Add review comment on selection")
 
 	-- Delete: if multiple comments, show picker
-	vim.keymap.set("n", "<leader>cd", function()
+	set_keymap("n", "delete", function()
 		local lnum = vim.api.nvim_win_get_cursor(0)[1]
 		local bufnr = vim.api.nvim_get_current_buf()
 		local all = comments.get_comments_at_line(bufnr, lnum)
@@ -70,10 +88,10 @@ function M.setup(opts)
 				end
 			end)
 		end
-	end, { desc = "Delete comment (with picker for overlaps)" })
+	end, "Delete comment (with picker for overlaps)")
 
 	-- Edit: if multiple comments, show picker
-	vim.keymap.set("n", "<leader>ce", function()
+	set_keymap("n", "edit", function()
 		local lnum = vim.api.nvim_win_get_cursor(0)[1]
 		local bufnr = vim.api.nvim_get_current_buf()
 		local all = comments.get_comments_at_line(bufnr, lnum)
@@ -110,10 +128,12 @@ function M.setup(opts)
 				end
 			end)
 		end
-	end, { desc = "Edit comment (with picker for overlaps)" })
+	end, "Edit comment (with picker for overlaps)")
 
-	vim.keymap.set("n", "<leader>cr", comments.toggle_resolved, { desc = "Toggle comment resolved" })
-	vim.keymap.set("n", "<leader>cc", comments.toggle_collapsed, { desc = "Toggle comment collapsed" })
+	-- Toggle collapsed
+	set_keymap("n", "toggle_collapsed", function()
+		comments.toggle_collapsed()
+	end, "Toggle comment collapsed")
 end
 
 -- Expose comment module

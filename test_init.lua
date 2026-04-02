@@ -29,12 +29,10 @@ vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
 local comments = require("diffie.comments")
 
 comments.add_comment(bufnr, 1, 11, "Refactor this function - too many responsibilities", {
-  resolved = false,
   collapsed = true,
 })
 
 comments.add_comment(bufnr, 2, 4, "Should throw error instead of returning nil", {
-  resolved = false,
   collapsed = true,
 })
 
@@ -53,5 +51,4 @@ print("Keybinds:")
 print("  <leader>ca - Add comment")
 print("  <leader>ce - Edit comment")
 print("  <leader>cc - Toggle collapsed")
-print("  <leader>cr - Toggle resolved")
 print("  <leader>cd - Delete comment")

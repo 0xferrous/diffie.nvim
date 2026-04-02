@@ -20,7 +20,6 @@ describe("comments state management", function()
       assert.is_not_nil(comments.state[bufnr])
       assert.equals(1, #comments.state[bufnr])
       assert.same({ "Test comment" }, comments.state[bufnr][1].text)
-      assert.is_false(comments.state[bufnr][1].resolved)
       assert.is_false(comments.state[bufnr][1].collapsed)
       assert.equals(5, comments.state[bufnr][1].start_lnum)
       assert.equals(5, comments.state[bufnr][1].end_lnum)
@@ -61,13 +60,11 @@ describe("comments state management", function()
     it("accepts custom options", function()
       comments.add_comment(bufnr, 10, 10, "Test", {
         author = "Alice",
-        resolved = true,
         collapsed = true,
       })
 
       local comment = comments.state[bufnr][1]
       assert.equals("Alice", comment.author)
-      assert.is_true(comment.resolved)
       assert.is_true(comment.collapsed)
     end)
 
@@ -155,26 +152,27 @@ describe("comments state management", function()
     end)
   end)
 
-  describe("toggle operations on overlaps", function()
-    it("toggles smallest comment at line", function()
+  describe("toggle_collapsed", function()
+    it("toggles collapsed state", function()
+      comments.add_comment(bufnr, 5, 5, "Test")
+      assert.is_false(comments.state[bufnr][1].collapsed)
+
+      comments.toggle_collapsed(bufnr, 5)
+      assert.is_true(comments.state[bufnr][1].collapsed)
+
+      comments.toggle_collapsed(bufnr, 5)
+      assert.is_false(comments.state[bufnr][1].collapsed)
+    end)
+
+    it("toggles smallest overlapping comment", function()
       comments.add_comment(bufnr, 3, 8, "Large")
       comments.add_comment(bufnr, 5, 6, "Small")
 
       -- Toggle on line 5 should affect "Small"
-      comments.toggle_resolved(bufnr, 5)
+      comments.toggle_collapsed(bufnr, 5)
 
-      -- Find which is resolved
       local small = comments.state[bufnr][2]
-      assert.is_true(small.resolved)
-    end)
-
-    it("finds smallest comment correctly", function()
-      comments.add_comment(bufnr, 1, 10, "Big")
-      comments.add_comment(bufnr, 3, 8, "Medium")
-      comments.add_comment(bufnr, 5, 6, "Small")
-
-      local smallest = comments._find_smallest_comment_at_line(bufnr, 5)
-      assert.equals("Small", smallest.text[1])
+      assert.is_true(small.collapsed)
     end)
   end)
 

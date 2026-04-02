@@ -23,7 +23,6 @@ end
 ---@field text string[]
 ---@field author string
 ---@field timestamp number
----@field resolved boolean
 ---@field collapsed boolean
 ---@field start_lnum integer (1-indexed, inclusive)
 ---@field end_lnum integer (1-indexed, inclusive)
@@ -48,29 +47,6 @@ local render_state = {} -- bufnr -> RenderState
 -- ============================================================================
 -- SPATIAL INDEX for fast overlap queries
 -- ============================================================================
-
----Build spatial index for a buffer
----@param bufnr integer
----@return table -- interval tree-like structure
-local function build_spatial_index(bufnr)
-  local index = {}
-  local comments = M.state[bufnr] or {}
-
-  for _, comment in ipairs(comments) do
-    table.insert(index, {
-      start_lnum = comment.start_lnum,
-      end_lnum = comment.end_lnum,
-      comment = comment,
-    })
-  end
-
-  -- Sort by start_lnum for efficient range queries
-  table.sort(index, function(a, b)
-    return a.start_lnum < b.start_lnum
-  end)
-
-  return index
-end
 
 ---Find all comments covering a line
 ---@param bufnr integer
@@ -157,8 +133,6 @@ end
 ---@param comment Comment
 ---@return integer extmark_id
 function Renderer.render_collapsed(bufnr, comment)
-  local hl_group = comment.resolved and "DiffieCommentResolved" or "DiffieComment"
-
   local preview = comment.text[1]:sub(1, 40)
   if #comment.text[1] > 40 then
     preview = preview .. "..."
@@ -173,7 +147,6 @@ function Renderer.render_collapsed(bufnr, comment)
     { preview, "DiffieCommentMeta" },
     { lines_count, "DiffieCommentMeta" },
     { range_str, "DiffieCommentBorder" },
-    { comment.resolved and " ✓" or "", "DiffieCommentResolved" },
   }
 
   local id = vim.api.nvim_buf_set_extmark(bufnr, ns, comment.end_lnum - 1, 0, {
@@ -192,7 +165,6 @@ end
 ---@param stack_position integer position in stack (for visual separation)
 ---@return integer extmark_id
 function Renderer.render_expanded(bufnr, comment, stack_position)
-  local hl_group = comment.resolved and "DiffieCommentResolved" or "DiffieComment"
   local lines = {}
 
   -- Add separator between stacked comments
@@ -205,7 +177,6 @@ function Renderer.render_expanded(bufnr, comment, stack_position)
   table.insert(lines, {
     { " ┌ ", "DiffieCommentBorder" },
     { range_str, "DiffieCommentBorder" },
-    { comment.resolved and " ✓" or "", "DiffieCommentResolved" },
   })
 
   -- Body
@@ -213,7 +184,7 @@ function Renderer.render_expanded(bufnr, comment, stack_position)
     local prefix = i == #comment.text and " └ " or " │ "
     table.insert(lines, {
       { prefix, "DiffieCommentBorder" },
-      { line, hl_group },
+      { line, "DiffieComment" },
     })
   end
 
@@ -343,7 +314,7 @@ end
 ---@param start_lnum integer|nil (1-indexed, inclusive)
 ---@param end_lnum integer|nil (1-indexed, inclusive)
 ---@param text string|string[]
----@param opts table|nil {author, timestamp, resolved, collapsed}
+---@param opts table|nil {author, timestamp, collapsed}
 function M.add_comment(bufnr, start_lnum, end_lnum, text, opts)
   opts = opts or {}
   bufnr = normalize_bufnr(bufnr)
@@ -377,7 +348,6 @@ function M.add_comment(bufnr, start_lnum, end_lnum, text, opts)
     text = text_arr,
     author = opts.author or "You",
     timestamp = opts.timestamp or os.time(),
-    resolved = opts.resolved or false,
     collapsed = opts.collapsed or false,
     start_lnum = start_lnum,
     end_lnum = end_lnum,
@@ -424,21 +394,6 @@ function M.delete_comment(bufnr, lnum_or_id, opts)
   end
 
   Renderer.render_buffer(bufnr)
-end
-
----Toggle resolved state (smallest comment at line)
----@param bufnr integer|nil
----@param lnum integer|nil (1-indexed, anywhere within range)
-function M.toggle_resolved(bufnr, lnum)
-  bufnr = normalize_bufnr(bufnr)
-  lnum = lnum or vim.api.nvim_win_get_cursor(0)[1]
-
-  local comment = find_smallest_comment_at_line(bufnr, lnum)
-
-  if comment then
-    comment.resolved = not comment.resolved
-    Renderer.render_buffer(bufnr)
-  end
 end
 
 ---Toggle collapsed state (smallest comment at line)
@@ -516,7 +471,6 @@ function M.setup_highlights()
   vim.api.nvim_set_hl(0, "DiffieComment", { fg = "#e6edf3", bg = "#161b22" })
   vim.api.nvim_set_hl(0, "DiffieCommentBorder", { fg = "#58a6ff", bg = "#161b22" })
   vim.api.nvim_set_hl(0, "DiffieCommentMeta", { fg = "#8b949e", bg = "#161b22" })
-  vim.api.nvim_set_hl(0, "DiffieCommentResolved", { fg = "#3fb950", bg = "#161b22" })
   vim.api.nvim_set_hl(0, "DiffieCommentMultiple", { fg = "#f0883e", bg = "#161b22" }) -- Orange for overlaps
   vim.api.nvim_set_hl(0, "DiffieCommentRange", { bg = "#1e2530" })
 end
