@@ -179,8 +179,9 @@ function Renderer.render_expanded(bufnr, comment, stack_position)
     table.insert(lines, { { "", "Normal" } })
   end
 
-  -- Header with range info
-  local range_str = comment.start_lnum == comment.end_lnum and ""
+  -- Header with range info - show line number for single-line comments
+  local range_str = comment.start_lnum == comment.end_lnum
+    and ("[Line " .. comment.start_lnum .. "]")
     or ("[lines " .. comment.start_lnum .. "-" .. comment.end_lnum .. "]")
   table.insert(lines, {
     { " ┌ ", "DiffieCommentBorder" },
