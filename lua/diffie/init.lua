@@ -50,9 +50,16 @@ function M.setup(opts)
   end
 
   function actions.add_visual()
+    -- Get visual selection range BEFORE exiting visual mode
+    -- line("v") gives start of visual selection, line(".") gives cursor position
+    local start_line = vim.fn.line("v")
+    local end_line = vim.fn.line(".")
+    -- Ensure start <= end
+    if start_line > end_line then
+      start_line, end_line = end_line, start_line
+    end
+    -- Exit visual mode
     vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false)
-    local start_line = vim.fn.line("'")
-    local end_line = vim.fn.line("'>")
     vim.ui.input({ prompt = "Comment on lines " .. start_line .. "-" .. end_line .. ": " }, function(input)
       if input then
         comments.add_comment(nil, start_line, end_line, input)

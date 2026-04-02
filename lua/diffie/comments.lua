@@ -180,8 +180,7 @@ function Renderer.render_expanded(bufnr, comment, stack_position)
   end
 
   -- Header with range info - show line number for single-line comments
-  local range_str = comment.start_lnum == comment.end_lnum
-    and ("[Line " .. comment.start_lnum .. "]")
+  local range_str = comment.start_lnum == comment.end_lnum and ("[Line " .. comment.start_lnum .. "]")
     or ("[lines " .. comment.start_lnum .. "-" .. comment.end_lnum .. "]")
   table.insert(lines, {
     { " ┌ ", "DiffieCommentBorder" },
