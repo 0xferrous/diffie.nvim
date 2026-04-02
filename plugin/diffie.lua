@@ -3,7 +3,7 @@
 
 -- Guard against loading multiple times
 if vim.g.loaded_diffie then
-	return
+  return
 end
 vim.g.loaded_diffie = 1
 

@@ -49,7 +49,7 @@ jobs:
           stylua --version
 
       - name: Check formatting
-        run: stylua --check lua/ tests/
+        run: stylua --check .
 
   lint:
     runs-on: ubuntu-latest

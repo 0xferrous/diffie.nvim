@@ -43,8 +43,8 @@ clean:
 
 # Format Lua files with stylua
 format:
-    stylua lua/ tests/
+    stylua .
 
 # Check formatting (CI)
 check-format:
-    stylua --check lua/ tests/
+    stylua --check .
