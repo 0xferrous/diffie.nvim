@@ -20,7 +20,23 @@ Add review comments directly in your code. Inspired by GitHub PR review comments
 ```lua
 {
     "0xferrous/diffie.nvim",
-    opts = {},
+    opts = {
+        -- Custom export format
+        export_format = function(ctx)
+            -- ctx contains:
+            --   comments: array of { id, text[], author, timestamp, collapsed, start_lnum, end_lnum }
+            --   filename: "main.lua"
+            --   filepath: "/home/user/project/src/main.lua"
+            --   relative_path: "src/main.lua"
+            --   root_dir: "/home/user/project"
+            local lines = {}
+            table.insert(lines, "Reviewing " .. ctx.relative_path .. ":")
+            for i, c in ipairs(ctx.comments) do
+                table.insert(lines, i .. ". Line " .. c.start_lnum .. ": " .. c.text[1])
+            end
+            return table.concat(lines, "\n")
+        end,
+    },
 }
 ```
 
@@ -57,6 +73,7 @@ require("diffie").setup({})
 | `<leader>ce` | Normal | Edit comment (shows picker if overlapping) |
 | `<leader>cd` | Normal | Delete comment (shows picker if overlapping) |
 | `<leader>cc` | Normal | Toggle collapsed/expanded |
+| `<leader>cx` | Normal | Export comments to clipboard |
 
 ### Example Workflow
 
@@ -86,14 +103,34 @@ V (select lines 10-15)
 require("diffie").setup({
     enabled = true,
     sign_column = true, -- Show 💬 in sign column
-
+    
     -- Keymap configuration
     keymaps = {
         add = "<leader>ca",
         edit = "<leader>ce",
         delete = "<leader>cd",
         toggle_collapsed = "<leader>cc",
+        export = "<leader>cx",
     },
+    
+    -- Custom export format (optional)
+    -- Function receives a context table with:
+    --   - comments: array of comment objects { id, text[], author, timestamp, collapsed, start_lnum, end_lnum }
+    --   - filename: just the filename (e.g., "main.lua")
+    --   - filepath: full absolute path (e.g., "/home/user/project/src/main.lua")
+    --   - relative_path: path from project root (e.g., "src/main.lua")
+    --   - root_dir: project root directory or nil
+    export_format = function(ctx)
+        local lines = {}
+        table.insert(lines, "Review comments for " .. ctx.filename .. ":")
+        for i, c in ipairs(ctx.comments) do
+            local range = c.start_lnum == c.end_lnum 
+                and tostring(c.start_lnum)
+                or (c.start_lnum .. "-" .. c.end_lnum)
+            table.insert(lines, i .. ". Line " .. range .. ": " .. table.concat(c.text, " "))
+        end
+        return table.concat(lines, "\n")
+    end,
 })
 ```
 
@@ -115,6 +152,22 @@ require("diffie").setup({
     keymaps = false,
 })
 ```
+
+## Export to Clipboard
+
+Export all comments in the current buffer to clipboard with `<leader>cx`. The default format uses the file path relative to the project root (detected via `.git`, `.jj`, `.hg`, `.svn`, `package.json`, `Cargo.toml`, `go.mod`, `pyproject.toml`, or `Makefile`):
+
+```
+I reviewed your code and have the following comments. Please address them.
+
+1. `src/utils/helpers.js:5` - Check for nil here
+2. `src/utils/helpers.js:10-15` - Refactor this block into smaller functions
+3. `src/utils/helpers.js:20` - Add error handling
+```
+
+If no project root is found, falls back to just the filename.
+
+Customize the format with the `export_format` configuration option (see Configuration above).
 
 ## Overlapping Comments
 

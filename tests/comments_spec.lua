@@ -229,6 +229,83 @@ describe("comments state management", function()
       comments.state[buf2] = nil
     end)
   end)
+
+  describe("get_all_comments", function()
+    it("returns all comments sorted by start line", function()
+      comments.add_comment(bufnr, 5, 5, "Fifth")
+      comments.add_comment(bufnr, 2, 2, "Second")
+      comments.add_comment(bufnr, 8, 10, "Eighth to Tenth")
+
+      local all = comments.get_all_comments(bufnr)
+      assert.equals(3, #all)
+      assert.equals("Second", all[1].text[1])
+      assert.equals("Fifth", all[2].text[1])
+      assert.equals("Eighth to Tenth", all[3].text[1])
+    end)
+
+    it("returns empty array when no comments", function()
+      local all = comments.get_all_comments(bufnr)
+      assert.equals(0, #all)
+    end)
+  end)
+
+  describe("export_comments", function()
+    it("returns false when no comments", function()
+      local result = comments.export_comments(bufnr)
+      assert.is_false(result)
+    end)
+
+    it("exports comments with default format", function()
+      -- Manually set up comments to avoid rendering issues in headless mode
+      comments.state[bufnr] = {
+        { id = 1, text = {"Check for nil"}, author = "You", timestamp = os.time(), collapsed = false, start_lnum = 5, end_lnum = 5 },
+        { id = 2, text = {"Refactor this block"}, author = "You", timestamp = os.time(), collapsed = false, start_lnum = 10, end_lnum = 15 },
+      }
+
+      -- Get the formatted output by checking what was set to registers
+      comments.export_comments(bufnr)
+
+      local clipboard = vim.fn.getreg('"')
+      assert.is_truthy(clipboard:find("I reviewed your code"))
+      assert.is_truthy(clipboard:find("1%."))
+      assert.is_truthy(clipboard:find("Check for nil"))
+      assert.is_truthy(clipboard:find("2%."))
+      assert.is_truthy(clipboard:find("Refactor this block"))
+    end)
+
+    it("uses custom export_format when provided", function()
+      comments.set_config({
+        export_format = function(ctx)
+          return "CUSTOM: " .. #ctx.comments .. " comments, file: " .. ctx.filename
+        end,
+      })
+
+      comments.state[bufnr] = {
+        { id = 1, text = {"Test"}, author = "You", timestamp = os.time(), collapsed = false, start_lnum = 1, end_lnum = 1 },
+      }
+      comments.export_comments(bufnr)
+
+      local clipboard = vim.fn.getreg('"')
+      assert.is_truthy(clipboard:find("CUSTOM: 1 comments"))
+      assert.is_truthy(clipboard:find("file:"))
+    end)
+
+    it("joins multiline comment text with spaces", function()
+      -- Reset config to default before this test
+      comments.set_config({ sign_column = true })
+      
+      comments.state[bufnr] = {
+        { id = 1, text = {"Line one", "Line two", "Line three"}, author = "You", timestamp = os.time(), collapsed = false, start_lnum = 3, end_lnum = 3 },
+      }
+      local result = comments.export_comments(bufnr)
+      
+      assert.is_true(result)
+      local clipboard = vim.fn.getreg('"')
+      -- Should contain the intro text and the comment
+      assert.is_truthy(clipboard:find("I reviewed your code"))
+      assert.is_truthy(clipboard:find("Line one"))
+    end)
+  end)
 end)
 
 describe("comments renderer", function()

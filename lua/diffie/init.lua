@@ -12,7 +12,11 @@ M.config = {
 		edit = "<leader>ce",         -- Edit comment
 		delete = "<leader>cd",       -- Delete comment
 		toggle_collapsed = "<leader>cc", -- Toggle collapsed status
+		export = "<leader>cx",       -- Export comments to clipboard
 	},
+	-- Export format function: takes comments array, returns string
+	-- Default format shows line ranges and comment text
+	export_format = nil,
 }
 
 --- Setup function
@@ -25,7 +29,10 @@ function M.setup(opts)
 	end
 
 	comments.setup_highlights()
-	comments.set_config({ sign_column = M.config.sign_column })
+	comments.set_config({
+		sign_column = M.config.sign_column,
+		export_format = M.config.export_format,
+	})
 
 	local keymaps = M.config.keymaps
 
@@ -134,6 +141,11 @@ function M.setup(opts)
 	set_keymap("n", "toggle_collapsed", function()
 		comments.toggle_collapsed()
 	end, "Toggle comment collapsed")
+
+	-- Export comments to clipboard
+	set_keymap("n", "export", function()
+		comments.export_comments()
+	end, "Export comments to clipboard")
 end
 
 -- Expose comment module

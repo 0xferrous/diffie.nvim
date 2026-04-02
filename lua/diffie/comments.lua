@@ -6,12 +6,18 @@ local ns = vim.api.nvim_create_namespace("diffie_comments")
 -- Module configuration
 local config = {
   sign_column = true, -- Default: show sign column indicators
+  export_format = nil, -- Function to format comments for export (comments) -> string
 }
 
 ---Set module configuration
 ---@param opts table
 function M.set_config(opts)
-  config = vim.tbl_extend("force", config, opts or {})
+  opts = opts or {}
+  -- Reset to defaults first, then apply new options
+  config = {
+    sign_column = opts.sign_column ~= nil and opts.sign_column or true,
+    export_format = opts.export_format, -- can be nil
+  }
 end
 
 -- ============================================================================
@@ -290,6 +296,58 @@ local function normalize_bufnr(bufnr)
   return bufnr
 end
 
+---Find project root by looking for marker files/directories
+---@param start_path string
+---@return string|nil root_path
+local function find_project_root(start_path)
+  local markers = { ".git", ".jj", ".hg", ".svn",  -- VCS markers
+                    "package.json", "Cargo.toml", "go.mod", "pyproject.toml", "Makefile" }  -- Project markers
+  
+  local current = vim.fn.fnamemodify(start_path, ":p:h")
+  local root = vim.fn.fnamemodify("/", ":p:h")
+  
+  while current ~= root do
+    for _, marker in ipairs(markers) do
+      local marker_path = current .. "/" .. marker
+      if vim.fn.isdirectory(marker_path) == 1 or vim.fn.filereadable(marker_path) == 1 then
+        return current
+      end
+    end
+    -- Go up one directory
+    local parent = vim.fn.fnamemodify(current, ":h")
+    if parent == current then
+      break
+    end
+    current = parent
+  end
+  
+  return nil
+end
+
+---Get relative path from project root, or just filename if no root found
+---@param bufnr integer
+---@return string path
+local function get_export_path(bufnr)
+  local bufname = vim.api.nvim_buf_get_name(bufnr)
+  if bufname == "" then
+    return "untitled"
+  end
+  
+  local root = find_project_root(bufname)
+  if root then
+    -- Return path relative to root
+    local relative = vim.fn.fnamemodify(bufname, ":~:.")  -- Try relative to cwd first
+    if vim.fn.stridx(relative, "..") == 0 then
+      -- If relative to cwd goes up, use absolute relative to root
+      relative = bufname:sub(#root + 2)  -- +2 to skip the / after root
+    end
+    return relative
+  else
+    -- Fallback to just filename
+    return vim.fn.fnamemodify(bufname, ":t")
+  end
+end
+
 ---Find comment by ID
 ---@param bufnr integer
 ---@param id integer
@@ -456,6 +514,94 @@ end
 function M.get_comments_at_line(bufnr, lnum)
   bufnr = normalize_bufnr(bufnr)
   return find_comments_at_line(bufnr, lnum)
+end
+
+---Get all comments in a buffer
+---@param bufnr integer|nil
+---@return Comment[]
+function M.get_all_comments(bufnr)
+  bufnr = normalize_bufnr(bufnr)
+  local comments = M.state[bufnr] or {}
+  -- Return a copy sorted by start line
+  local result = {}
+  for _, comment in ipairs(comments) do
+    table.insert(result, comment)
+  end
+  table.sort(result, function(a, b)
+    return a.start_lnum < b.start_lnum
+  end)
+  return result
+end
+
+---@class ExportContext
+---@field comments Comment[] Array of comment objects
+---@field filename string Just the filename (e.g., "main.lua")
+---@field filepath string Full absolute path (e.g., "/home/user/project/src/main.lua")
+---@field relative_path string Path relative to project root (e.g., "src/main.lua")
+---@field root_dir string|nil Project root directory or nil if not found
+
+---Export comments to clipboard
+---@param bufnr integer|nil
+---@return boolean success
+function M.export_comments(bufnr)
+  bufnr = normalize_bufnr(bufnr)
+  local comments = M.get_all_comments(bufnr)
+
+  if #comments == 0 then
+    vim.notify("No comments to export", vim.log.levels.WARN)
+    return false
+  end
+
+  -- Gather file context
+  local bufname = vim.api.nvim_buf_get_name(bufnr)
+  local filename = vim.fn.fnamemodify(bufname, ":t")
+  if filename == "" then
+    filename = "untitled"
+    bufname = "untitled"
+  end
+  
+  local root_dir = find_project_root(bufname)
+  local relative_path = get_export_path(bufnr)
+  
+  ---@type ExportContext
+  local context = {
+    comments = comments,
+    filename = filename,
+    filepath = bufname,
+    relative_path = relative_path,
+    root_dir = root_dir,
+  }
+
+  local formatted
+  if config.export_format then
+    formatted = config.export_format(context)
+  else
+    -- Default format
+    local lines = {}
+    table.insert(lines, "I reviewed your code and have the following comments. Please address them.")
+    table.insert(lines, "")
+
+    for i, comment in ipairs(comments) do
+      local location
+      if comment.start_lnum == comment.end_lnum then
+        location = string.format("`%s:%d`", relative_path, comment.start_lnum)
+      else
+        location = string.format("`%s:%d-%d`", relative_path, comment.start_lnum, comment.end_lnum)
+      end
+
+      -- Join comment text with spaces to make it a single line description
+      local content = table.concat(comment.text, " ")
+      table.insert(lines, string.format("%d. %s - %s", i, location, content))
+    end
+
+    formatted = table.concat(lines, "\n")
+  end
+
+  -- Copy to clipboard
+  vim.fn.setreg("+", formatted)
+  vim.fn.setreg('"', formatted)
+  vim.notify("Exported " .. #comments .. " comment(s) to clipboard", vim.log.levels.INFO)
+  return true
 end
 
 ---Clear all comments from a buffer
