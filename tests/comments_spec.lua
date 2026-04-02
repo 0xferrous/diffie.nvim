@@ -4,10 +4,7 @@ describe("comments state management", function()
   local bufnr
 
   before_each(function()
-    -- Reset global state
     comments.state = {}
-    
-    -- Create a fresh buffer with content for each test
     bufnr = create_test_buffer()
   end)
 
@@ -16,120 +13,202 @@ describe("comments state management", function()
   end)
 
   describe("add_comment", function()
-    it("stores comment in state", function()
-      comments.add_comment(bufnr, 5, "Test comment")
+    it("stores single-line comment in state", function()
+      local id = comments.add_comment(bufnr, 5, 5, "Test comment")
 
+      assert.is_number(id)
       assert.is_not_nil(comments.state[bufnr])
-      assert.is_not_nil(comments.state[bufnr][5])
-      assert.same({ "Test comment" }, comments.state[bufnr][5].text)
-      assert.equals("You", comments.state[bufnr][5].author)
-      assert.is_false(comments.state[bufnr][5].resolved)
-      assert.is_false(comments.state[bufnr][5].collapsed)
+      assert.equals(1, #comments.state[bufnr])
+      assert.same({ "Test comment" }, comments.state[bufnr][1].text)
+      assert.is_false(comments.state[bufnr][1].resolved)
+      assert.is_false(comments.state[bufnr][1].collapsed)
+      assert.equals(5, comments.state[bufnr][1].start_lnum)
+      assert.equals(5, comments.state[bufnr][1].end_lnum)
+    end)
+
+    it("stores range comment in state", function()
+      local id = comments.add_comment(bufnr, 3, 7, "Range comment")
+
+      assert.equals(3, comments.state[bufnr][1].start_lnum)
+      assert.equals(7, comments.state[bufnr][1].end_lnum)
+    end)
+
+    it("allows overlapping comments", function()
+      local id1 = comments.add_comment(bufnr, 3, 6, "First comment")
+      local id2 = comments.add_comment(bufnr, 5, 8, "Second comment (overlap)")
+
+      assert.equals(2, #comments.state[bufnr])
+      assert.are_not.equal(id1, id2)
+
+      -- Both should be findable
+      local all = comments._find_comments_at_line(bufnr, 5)
+      assert.equals(2, #all)
+    end)
+
+    it("swaps range if start > end", function()
+      comments.add_comment(bufnr, 8, 4, "Reversed range")
+
+      assert.equals(4, comments.state[bufnr][1].start_lnum)
+      assert.equals(8, comments.state[bufnr][1].end_lnum)
     end)
 
     it("accepts multiline text", function()
-      comments.add_comment(bufnr, 3, "Line 1\nLine 2\nLine 3")
+      comments.add_comment(bufnr, 3, 3, "Line 1\nLine 2\nLine 3")
 
-      assert.same({ "Line 1", "Line 2", "Line 3" }, comments.state[bufnr][3].text)
-    end)
-
-    it("accepts table of strings", function()
-      comments.add_comment(bufnr, 3, { "Line 1", "Line 2" })
-
-      assert.same({ "Line 1", "Line 2" }, comments.state[bufnr][3].text)
+      assert.same({ "Line 1", "Line 2", "Line 3" }, comments.state[bufnr][1].text)
     end)
 
     it("accepts custom options", function()
-      comments.add_comment(bufnr, 10, "Test", {
+      comments.add_comment(bufnr, 10, 10, "Test", {
         author = "Alice",
         resolved = true,
         collapsed = true,
       })
 
-      local comment = comments.state[bufnr][10]
+      local comment = comments.state[bufnr][1]
       assert.equals("Alice", comment.author)
       assert.is_true(comment.resolved)
       assert.is_true(comment.collapsed)
     end)
 
-    it("uses current line when lnum not provided", function()
-      vim.api.nvim_win_set_cursor(0, { 7, 0 })
-      comments.add_comment(bufnr, nil, "At line 7")
+    it("assigns unique IDs", function()
+      local id1 = comments.add_comment(bufnr, 1, 1, "First")
+      local id2 = comments.add_comment(bufnr, 2, 2, "Second")
+      local id3 = comments.add_comment(bufnr, 3, 3, "Third")
 
-      assert.is_not_nil(comments.state[bufnr][7])
+      assert.is_true(id1 < id2)
+      assert.is_true(id2 < id3)
     end)
   end)
 
   describe("delete_comment", function()
-    it("removes comment from state", function()
-      comments.add_comment(bufnr, 5, "To delete")
-      assert.is_not_nil(comments.state[bufnr][5])
+    it("removes comment by line (smallest range)", function()
+      comments.add_comment(bufnr, 5, 5, "To delete")
+      assert.equals(1, #comments.state[bufnr])
 
       comments.delete_comment(bufnr, 5)
-      -- Buffer state may be nil after cleanup, so check safely
-      assert.is_true(comments.state[bufnr] == nil or comments.state[bufnr][5] == nil)
+      -- Buffer state is nil when empty
+      assert.is_true(comments.state[bufnr] == nil or #comments.state[bufnr] == 0)
+    end)
+
+    it("deletes smallest overlapping comment", function()
+      -- Add overlapping: A(3-8), B(5-6)
+      comments.add_comment(bufnr, 3, 8, "Large range")
+      comments.add_comment(bufnr, 5, 6, "Small range")
+
+      -- Delete on line 5 should delete B (smaller)
+      comments.delete_comment(bufnr, 5)
+
+      -- Should have 1 left (the large one)
+      assert.equals(1, #comments.state[bufnr])
+      assert.equals("Large range", comments.state[bufnr][1].text[1])
     end)
 
     it("cleans up empty buffer state", function()
-      comments.add_comment(bufnr, 5, "Only comment")
+      comments.add_comment(bufnr, 5, 5, "Only comment")
       comments.delete_comment(bufnr, 5)
 
       assert.is_nil(comments.state[bufnr])
     end)
   end)
 
-  describe("toggle_resolved", function()
-    it("toggles resolved state", function()
-      comments.add_comment(bufnr, 5, "Test")
-      assert.is_false(comments.state[bufnr][5].resolved)
+  describe("edit_comment", function()
+    it("edits comment text by line", function()
+      comments.add_comment(bufnr, 5, 5, "Original text")
 
-      comments.toggle_resolved(bufnr, 5)
-      assert.is_true(comments.state[bufnr][5].resolved)
+      local result = comments.edit_comment(bufnr, 5, "Updated text")
 
-      comments.toggle_resolved(bufnr, 5)
-      assert.is_false(comments.state[bufnr][5].resolved)
+      assert.is_true(result)
+      assert.same({ "Updated text" }, comments.state[bufnr][1].text)
     end)
 
-    it("does nothing on non-existent comment", function()
-      -- Should not error
-      comments.toggle_resolved(bufnr, 999)
+    it("edits multiline text", function()
+      comments.add_comment(bufnr, 5, 5, "Line 1")
+
+      comments.edit_comment(bufnr, 5, "New line 1\nNew line 2")
+
+      assert.same({ "New line 1", "New line 2" }, comments.state[bufnr][1].text)
+    end)
+
+    it("edits smallest overlapping comment", function()
+      comments.add_comment(bufnr, 3, 8, "Large range")
+      comments.add_comment(bufnr, 5, 6, "Small range")
+
+      -- Edit on line 5 should edit "Small"
+      comments.edit_comment(bufnr, 5, "Edited small")
+
+      assert.equals("Edited small", comments.state[bufnr][2].text[1])
+      assert.equals("Large range", comments.state[bufnr][1].text[1]) -- Unchanged
+    end)
+
+    it("edits by ID", function()
+      local id = comments.add_comment(bufnr, 5, 5, "Original")
+
+      comments.edit_comment(bufnr, id, "By ID", { by_id = true })
+
+      assert.same({ "By ID" }, comments.state[bufnr][1].text)
+    end)
+
+    it("returns false for non-existent comment", function()
+      local result = comments.edit_comment(bufnr, 999, "Text")
+      assert.is_false(result)
     end)
   end)
 
-  describe("toggle_collapsed", function()
-    it("toggles collapsed state", function()
-      comments.add_comment(bufnr, 5, "Test")
-      assert.is_false(comments.state[bufnr][5].collapsed)
+  describe("toggle operations on overlaps", function()
+    it("toggles smallest comment at line", function()
+      comments.add_comment(bufnr, 3, 8, "Large")
+      comments.add_comment(bufnr, 5, 6, "Small")
 
-      comments.toggle_collapsed(bufnr, 5)
-      assert.is_true(comments.state[bufnr][5].collapsed)
+      -- Toggle on line 5 should affect "Small"
+      comments.toggle_resolved(bufnr, 5)
 
-      comments.toggle_collapsed(bufnr, 5)
-      assert.is_false(comments.state[bufnr][5].collapsed)
+      -- Find which is resolved
+      local small = comments.state[bufnr][2]
+      assert.is_true(small.resolved)
+    end)
+
+    it("finds smallest comment correctly", function()
+      comments.add_comment(bufnr, 1, 10, "Big")
+      comments.add_comment(bufnr, 3, 8, "Medium")
+      comments.add_comment(bufnr, 5, 6, "Small")
+
+      local smallest = comments._find_smallest_comment_at_line(bufnr, 5)
+      assert.equals("Small", smallest.text[1])
     end)
   end)
 
   describe("get_comment", function()
-    it("returns comment data", function()
-      comments.add_comment(bufnr, 5, "Test comment", { author = "Bob" })
+    it("returns smallest comment at line", function()
+      comments.add_comment(bufnr, 3, 8, "Large")
+      comments.add_comment(bufnr, 5, 6, "Small")
 
-      local comment = comments.get_comment(bufnr, 5)
-      assert.is_not_nil(comment)
-      assert.equals("Bob", comment.author)
-      assert.same({ "Test comment" }, comment.text)
+      local found = comments.get_comment(bufnr, 5)
+      assert.equals("Small", found.text[1])
     end)
 
     it("returns nil for non-existent comment", function()
-      local comment = comments.get_comment(bufnr, 999)
-      assert.is_nil(comment)
+      local found = comments.get_comment(bufnr, 999)
+      assert.is_nil(found)
+    end)
+  end)
+
+  describe("get_comments_at_line", function()
+    it("returns all comments at line", function()
+      comments.add_comment(bufnr, 3, 6, "A")
+      comments.add_comment(bufnr, 5, 8, "B")
+      comments.add_comment(bufnr, 10, 10, "C")
+
+      local all = comments.get_comments_at_line(bufnr, 5)
+      assert.equals(2, #all)
     end)
   end)
 
   describe("clear_buffer", function()
     it("removes all comments from buffer", function()
-      comments.add_comment(bufnr, 1, "One")
-      comments.add_comment(bufnr, 5, "Two")
-      comments.add_comment(bufnr, 10, "Three")
+      comments.add_comment(bufnr, 1, 1, "One")
+      comments.add_comment(bufnr, 5, 7, "Two")
+      comments.add_comment(bufnr, 10, 10, "Three")
 
       comments.clear_buffer(bufnr)
 
@@ -139,18 +218,16 @@ describe("comments state management", function()
 
   describe("state isolation", function()
     it("keeps buffers independent", function()
-      -- Create second buffer with content
       local buf2 = vim.api.nvim_create_buf(false, true)
-      vim.api.nvim_buf_set_lines(buf2, 0, -1, false, { "A", "B", "C", "D", "E" })
+      vim.api.nvim_buf_set_lines(buf2, 0, -1, false, { "A", "B", "C" })
 
-      -- Only test state, skip rendering for buf2 by manipulating state directly
-      comments.add_comment(bufnr, 5, "Buffer 1 comment")
-      comments.state[buf2] = { [3] = { text = { "Buffer 2 comment" }, author = "test" } }
+      comments.add_comment(bufnr, 5, 5, "Buffer 1")
+      -- Manually add to buf2 to avoid render
+      comments.state[buf2] = { { text = { "Buffer 2" }, id = 999, start_lnum = 2, end_lnum = 2 } }
 
-      assert.equals("Buffer 1 comment", comments.state[bufnr][5].text[1])
-      assert.equals("Buffer 2 comment", comments.state[buf2][3].text[1])
+      assert.equals("Buffer 1", comments.state[bufnr][1].text[1])
+      assert.equals("Buffer 2", comments.state[buf2][1].text[1])
 
-      -- Clean up
       comments.state[buf2] = nil
     end)
   end)
@@ -162,15 +239,6 @@ describe("comments renderer", function()
   before_each(function()
     comments.state = {}
     bufnr = create_test_buffer()
-    
-    -- Set up buffer with some lines
-    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
-      "Line 1",
-      "Line 2",
-      "Line 3",
-      "Line 4",
-      "Line 5",
-    })
   end)
 
   after_each(function()
@@ -180,52 +248,14 @@ describe("comments renderer", function()
 
   describe("clear", function()
     it("clears all extmarks from namespace", function()
-      comments.add_comment(bufnr, 2, "Test")
-      
-      -- Verify extmark exists
+      comments.add_comment(bufnr, 2, 2, "Test")
+
       local marks = vim.api.nvim_buf_get_extmarks(bufnr, vim.api.nvim_create_namespace("diffie_comments"), 0, -1, {})
       assert.is_true(#marks > 0)
-      
-      -- Clear and verify gone
+
       comments._renderer.clear(bufnr)
       marks = vim.api.nvim_buf_get_extmarks(bufnr, vim.api.nvim_create_namespace("diffie_comments"), 0, -1, {})
       assert.equals(0, #marks)
-    end)
-  end)
-
-  describe("render_collapsed", function()
-    it("creates eol extmark", function()
-      local comment = {
-        text = { "Test comment" },
-        author = "You",
-        timestamp = os.time(),
-        resolved = false,
-        collapsed = true,
-      }
-
-      comments._renderer.clear(bufnr)
-      local id = comments._renderer.render_collapsed(bufnr, 2, comment)
-      
-      assert.is_number(id)
-      assert.is_true(id > 0)
-    end)
-  end)
-
-  describe("render_expanded", function()
-    it("creates virt_lines extmark", function()
-      local comment = {
-        text = { "Line 1", "Line 2" },
-        author = "You",
-        timestamp = os.time(),
-        resolved = false,
-        collapsed = false,
-      }
-
-      comments._renderer.clear(bufnr)
-      local id = comments._renderer.render_expanded(bufnr, 2, comment)
-      
-      assert.is_number(id)
-      assert.is_true(id > 0)
     end)
   end)
 end)

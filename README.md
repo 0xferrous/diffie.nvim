@@ -8,7 +8,7 @@ A Neovim plugin template.
 
 ```lua
 {
-	"dmnt/diffie.nvim",
+	"0xferrous/diffie.nvim",
 	opts = {},
 	config = true,
 }
@@ -18,7 +18,7 @@ A Neovim plugin template.
 
 ```lua
 use {
-	"dmnt/diffie.nvim",
+	"0xferrous/diffie.nvim",
 	config = function()
 		require("diffie").setup({})
 	end
@@ -28,7 +28,7 @@ use {
 ### [vim-plug](https://github.com/junegunn/vim-plug)
 
 ```vim
-Plug 'dmnt/diffie.nvim'
+Plug '0xferrous/diffie.nvim'
 ```
 
 Then in your Lua config:
