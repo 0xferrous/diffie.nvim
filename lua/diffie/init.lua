@@ -5,6 +5,7 @@ local comments = require("diffie.comments")
 --- Default configuration
 M.config = {
 	enabled = true,
+	sign_column = true, -- Show sign column indicators
 }
 
 --- Setup function
@@ -17,6 +18,7 @@ function M.setup(opts)
 	end
 
 	comments.setup_highlights()
+	comments.set_config({ sign_column = M.config.sign_column })
 
 	-- Helper to get visual selection range
 	local function get_visual_range()

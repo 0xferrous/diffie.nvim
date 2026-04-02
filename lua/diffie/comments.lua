@@ -3,6 +3,17 @@ local M = {}
 -- Namespace for all extmarks
 local ns = vim.api.nvim_create_namespace("diffie_comments")
 
+-- Module configuration
+local config = {
+  sign_column = true, -- Default: show sign column indicators
+}
+
+---Set module configuration
+---@param opts table
+function M.set_config(opts)
+  config = vim.tbl_extend("force", config, opts or {})
+end
+
 -- ============================================================================
 -- STATE (pure data, easily testable)
 -- ============================================================================
@@ -287,8 +298,8 @@ function Renderer.render_buffer(bufnr)
         Renderer.render_expanded(bufnr, comment, i)
       end
 
-      -- Sign at start line (once per line, with count)
-      if not signed_lines[comment.start_lnum] then
+      -- Sign at start line (once per line, with count) - if enabled
+      if config.sign_column and not signed_lines[comment.start_lnum] then
         local count = count_comments_at_line(bufnr, comment.start_lnum)
         Renderer.render_sign(bufnr, comment.start_lnum, count)
         signed_lines[comment.start_lnum] = true
