@@ -8,11 +8,11 @@ M.config = {
 	sign_column = true, -- Show sign column indicators
 	-- Keymap configuration: set to false to disable a keymap, or change the keys
 	keymaps = {
-		add = "<leader>ca",          -- Add comment (normal: current line, visual: selection)
-		edit = "<leader>ce",         -- Edit comment
-		delete = "<leader>cd",       -- Delete comment
+		add = "<leader>ca",			-- Add comment (normal: current line, visual: selection)
+		edit = "<leader>ce",		-- Edit comment
+		delete = "<leader>cd",		-- Delete comment
 		toggle_collapsed = "<leader>cc", -- Toggle collapsed status
-		export = "<leader>cx",       -- Export comments to clipboard
+		export = "<leader>cx",		-- Export comments to clipboard
 	},
 	-- Export format function: takes comments array, returns string
 	-- Default format shows line ranges and comment text
@@ -34,42 +34,33 @@ function M.setup(opts)
 		export_format = M.config.export_format,
 	})
 
-	local keymaps = M.config.keymaps
+	-- Shared action functions used by both keymaps and commands
+	local actions = {}
 
-	-- Helper to safely set keymaps (skips if keymap is false)
-	local function set_keymap(mode, cfg_key, rhs, desc)
-		if not keymaps or keymaps[cfg_key] == false then
-			return
+	function actions.add(text)
+		if text and text ~= "" then
+			comments.add_comment(nil, nil, nil, text)
+		else
+			vim.ui.input({ prompt = "Comment: " }, function(input)
+				if input then
+					comments.add_comment(nil, nil, nil, input)
+				end
+			end)
 		end
-		local lhs = keymaps[cfg_key]
-		vim.keymap.set(mode, lhs, rhs, { desc = desc })
 	end
 
-	-- Normal mode: comment current line
-	set_keymap("n", "add", function()
-		vim.ui.input({ prompt = "Comment: " }, function(input)
-			if input then
-				comments.add_comment(nil, nil, nil, input)
-			end
-		end)
-	end, "Add review comment")
-
-	-- Visual mode: comment selected range
-	set_keymap("v", "add", function()
-		-- Exit visual mode first
+	function actions.add_visual()
 		vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false)
-		-- Get selection range (marks are updated after exiting visual mode)
-		local start_line = vim.fn.line("'<")
+		local start_line = vim.fn.line("'")
 		local end_line = vim.fn.line("'>")
 		vim.ui.input({ prompt = "Comment on lines " .. start_line .. "-" .. end_line .. ": " }, function(input)
 			if input then
 				comments.add_comment(nil, start_line, end_line, input)
 			end
 		end)
-	end, "Add review comment on selection")
+	end
 
-	-- Delete: if multiple comments, show picker
-	set_keymap("n", "delete", function()
+	function actions.edit()
 		local lnum = vim.api.nvim_win_get_cursor(0)[1]
 		local bufnr = vim.api.nvim_get_current_buf()
 		local all = comments.get_comments_at_line(bufnr, lnum)
@@ -78,36 +69,6 @@ function M.setup(opts)
 			vim.notify("No comment at line " .. lnum, vim.log.levels.WARN)
 			return
 		elseif #all == 1 then
-			comments.delete_comment(bufnr, lnum)
-		else
-			-- Show picker for multiple comments
-			local items = {}
-			for i, c in ipairs(all) do
-				local range = c.start_lnum == c.end_lnum and ("L" .. c.start_lnum) or ("L" .. c.start_lnum .. "-" .. c.end_lnum)
-				local preview = c.text[1]:sub(1, 30)
-				if #c.text[1] > 30 then preview = preview .. "..." end
-				table.insert(items, i .. ". [" .. range .. "] " .. preview)
-			end
-
-			vim.ui.select(items, { prompt = "Delete which comment?" }, function(_, idx)
-				if idx then
-					comments.delete_comment(bufnr, all[idx].id, { by_id = true })
-				end
-			end)
-		end
-	end, "Delete comment (with picker for overlaps)")
-
-	-- Edit: if multiple comments, show picker
-	set_keymap("n", "edit", function()
-		local lnum = vim.api.nvim_win_get_cursor(0)[1]
-		local bufnr = vim.api.nvim_get_current_buf()
-		local all = comments.get_comments_at_line(bufnr, lnum)
-
-		if #all == 0 then
-			vim.notify("No comment at line " .. lnum, vim.log.levels.WARN)
-			return
-		elseif #all == 1 then
-			-- Edit the single comment
 			local current_text = table.concat(all[1].text, "\n")
 			vim.ui.input({ prompt = "Edit comment: ", default = current_text }, function(input)
 				if input then
@@ -115,7 +76,6 @@ function M.setup(opts)
 				end
 			end)
 		else
-			-- Show picker for multiple comments
 			local items = {}
 			for i, c in ipairs(all) do
 				local range = c.start_lnum == c.end_lnum and ("L" .. c.start_lnum) or ("L" .. c.start_lnum .. "-" .. c.end_lnum)
@@ -123,7 +83,6 @@ function M.setup(opts)
 				if #c.text[1] > 30 then preview = preview .. "..." end
 				table.insert(items, i .. ". [" .. range .. "] " .. preview)
 			end
-
 			vim.ui.select(items, { prompt = "Edit which comment?" }, function(_, idx)
 				if idx then
 					local current_text = table.concat(all[idx].text, "\n")
@@ -135,17 +94,89 @@ function M.setup(opts)
 				end
 			end)
 		end
-	end, "Edit comment (with picker for overlaps)")
+	end
 
-	-- Toggle collapsed
-	set_keymap("n", "toggle_collapsed", function()
+	function actions.delete()
+		local lnum = vim.api.nvim_win_get_cursor(0)[1]
+		local bufnr = vim.api.nvim_get_current_buf()
+		local all = comments.get_comments_at_line(bufnr, lnum)
+
+		if #all == 0 then
+			vim.notify("No comment at line " .. lnum, vim.log.levels.WARN)
+			return
+		elseif #all == 1 then
+			comments.delete_comment(bufnr, lnum)
+		else
+			local items = {}
+			for i, c in ipairs(all) do
+				local range = c.start_lnum == c.end_lnum and ("L" .. c.start_lnum) or ("L" .. c.start_lnum .. "-" .. c.end_lnum)
+				local preview = c.text[1]:sub(1, 30)
+				if #c.text[1] > 30 then preview = preview .. "..." end
+				table.insert(items, i .. ". [" .. range .. "] " .. preview)
+			end
+			vim.ui.select(items, { prompt = "Delete which comment?" }, function(_, idx)
+				if idx then
+					comments.delete_comment(bufnr, all[idx].id, { by_id = true })
+				end
+			end)
+		end
+	end
+
+	function actions.toggle()
 		comments.toggle_collapsed()
-	end, "Toggle comment collapsed")
+	end
 
-	-- Export comments to clipboard
-	set_keymap("n", "export", function()
+	function actions.export()
 		comments.export_comments()
-	end, "Export comments to clipboard")
+	end
+
+	function actions.clear()
+		local bufnr = vim.api.nvim_get_current_buf()
+		comments.clear_buffer(bufnr)
+		vim.notify("Cleared all comments from buffer", vim.log.levels.INFO)
+	end
+
+	-- Keymaps
+	local keymaps = M.config.keymaps
+	local function set_keymap(mode, cfg_key, rhs, desc)
+		if not keymaps or keymaps[cfg_key] == false then
+			return
+		end
+		local lhs = keymaps[cfg_key]
+		vim.keymap.set(mode, lhs, rhs, { desc = desc })
+	end
+
+	set_keymap("n", "add", function() actions.add() end, "Add review comment")
+	set_keymap("v", "add", function() actions.add_visual() end, "Add review comment on selection")
+	set_keymap("n", "edit", function() actions.edit() end, "Edit comment (with picker for overlaps)")
+	set_keymap("n", "delete", function() actions.delete() end, "Delete comment (with picker for overlaps)")
+	set_keymap("n", "toggle_collapsed", function() actions.toggle() end, "Toggle comment collapsed")
+	set_keymap("n", "export", function() actions.export() end, "Export comments to clipboard")
+
+	-- User commands - use the same action functions
+	vim.api.nvim_create_user_command("DiffieAdd", function(opts)
+		actions.add(opts.args)
+	end, { nargs = "?", desc = "Add a comment on current line or range" })
+
+	vim.api.nvim_create_user_command("DiffieEdit", function()
+		actions.edit()
+	end, { desc = "Edit comment at cursor (shows picker if overlapping)" })
+
+	vim.api.nvim_create_user_command("DiffieDelete", function()
+		actions.delete()
+	end, { desc = "Delete comment at cursor (shows picker if overlapping)" })
+
+	vim.api.nvim_create_user_command("DiffieToggle", function()
+		actions.toggle()
+	end, { desc = "Toggle collapsed/expanded for comment at cursor" })
+
+	vim.api.nvim_create_user_command("DiffieExport", function()
+		actions.export()
+	end, { desc = "Export all comments to clipboard" })
+
+	vim.api.nvim_create_user_command("DiffieClear", function()
+		actions.clear()
+	end, { desc = "Clear all comments from current buffer" })
 end
 
 -- Expose comment module

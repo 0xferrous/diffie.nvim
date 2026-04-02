@@ -83,6 +83,17 @@ require("diffie").setup({})
 | `<leader>cc` | Normal | Toggle collapsed/expanded |
 | `<leader>cx` | Normal | Export comments to clipboard |
 
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `:DiffieAdd [text]` | Add comment on current line (prompts if no text) |
+| `:DiffieEdit` | Edit comment at cursor (shows picker if overlapping) |
+| `:DiffieDelete` | Delete comment at cursor (shows picker if overlapping) |
+| `:DiffieToggle` | Toggle collapsed/expanded for comment at cursor |
+| `:DiffieExport` | Export all comments to clipboard |
+| `:DiffieClear` | Clear all comments from current buffer |
+
 ### Example Workflow
 
 ```lua
