@@ -16,13 +16,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Neovim
-        uses: rhymond/setup-neovim@v1
-        with:
-          neovim-version: ${{ matrix.nvim-version }}
-
-      - name: Check Neovim version
-        run: nvim --version
+      - name: Install Neovim
+        run: |
+          if [ "${{ matrix.nvim-version }}" = "nightly" ]; then
+            curl -LO https://github.com/neovim/neovim/releases/download/nightly/nvim-linux64.tar.gz
+            sudo rm -rf /opt/nvim
+            sudo tar -C /opt -xzf nvim-linux64.tar.gz
+            sudo ln -sf /opt/nvim-linux64/bin/nvim /usr/local/bin/nvim
+          else
+            curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim-linux64.tar.gz
+            sudo rm -rf /opt/nvim
+            sudo tar -C /opt -xzf nvim-linux64.tar.gz
+            sudo ln -sf /opt/nvim-linux64/bin/nvim /usr/local/bin/nvim
+          fi
+          nvim --version
 
       - name: Run tests
         run: |
@@ -36,15 +43,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Neovim
-        uses: rhymond/setup-neovim@v1
-        with:
-          neovim-version: stable
+      - name: Install Neovim
+        run: |
+          curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim-linux64.tar.gz
+          sudo rm -rf /opt/nvim
+          sudo tar -C /opt -xzf nvim-linux64.tar.gz
+          sudo ln -sf /opt/nvim-linux64/bin/nvim /usr/local/bin/nvim
+          nvim --version
 
       - name: Check Lua syntax
         run: |
+          shopt -s globstar
           for f in lua/**/*.lua tests/**/*.lua; do
             echo "Checking $f"
             nvim --headless -c "luafile $f" -c "qa!" 2>/dev/null || exit 1
           done
           echo "All files OK"
+        shell: bash
