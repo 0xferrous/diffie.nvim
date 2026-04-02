@@ -27,7 +27,7 @@ test-file file:
 
 # Load plugin in nvim with test_init.lua for manual testing
 dev:
-    nvim -u test_init.lua
+    nvim -u tests/test_init.lua
 
 # Check Lua syntax
 lint:
