@@ -145,7 +145,8 @@ function Renderer.render_collapsed(bufnr, comment)
   end
 
   local lines_count = #comment.text > 1 and (" (+" .. (#comment.text - 1) .. " lines)") or ""
-  local range_str = comment.start_lnum == comment.end_lnum and "" or (" [L" .. comment.start_lnum .. "-" .. comment.end_lnum .. "]")
+  local range_str = comment.start_lnum == comment.end_lnum and ""
+    or (" [L" .. comment.start_lnum .. "-" .. comment.end_lnum .. "]")
 
   local virt_text = {
     { " ", "Normal" },
@@ -179,7 +180,8 @@ function Renderer.render_expanded(bufnr, comment, stack_position)
   end
 
   -- Header with range info
-  local range_str = comment.start_lnum == comment.end_lnum and "" or ("[lines " .. comment.start_lnum .. "-" .. comment.end_lnum .. "]")
+  local range_str = comment.start_lnum == comment.end_lnum and ""
+    or ("[lines " .. comment.start_lnum .. "-" .. comment.end_lnum .. "]")
   table.insert(lines, {
     { " ┌ ", "DiffieCommentBorder" },
     { range_str, "DiffieCommentBorder" },
@@ -300,12 +302,21 @@ end
 ---@param start_path string
 ---@return string|nil root_path
 local function find_project_root(start_path)
-  local markers = { ".git", ".jj", ".hg", ".svn",  -- VCS markers
-                    "package.json", "Cargo.toml", "go.mod", "pyproject.toml", "Makefile" }  -- Project markers
-  
+  local markers = {
+    ".git",
+    ".jj",
+    ".hg",
+    ".svn", -- VCS markers
+    "package.json",
+    "Cargo.toml",
+    "go.mod",
+    "pyproject.toml",
+    "Makefile",
+  } -- Project markers
+
   local current = vim.fn.fnamemodify(start_path, ":p:h")
   local root = vim.fn.fnamemodify("/", ":p:h")
-  
+
   while current ~= root do
     for _, marker in ipairs(markers) do
       local marker_path = current .. "/" .. marker
@@ -320,7 +331,7 @@ local function find_project_root(start_path)
     end
     current = parent
   end
-  
+
   return nil
 end
 
@@ -332,14 +343,14 @@ local function get_export_path(bufnr)
   if bufname == "" then
     return "untitled"
   end
-  
+
   local root = find_project_root(bufname)
   if root then
     -- Return path relative to root
-    local relative = vim.fn.fnamemodify(bufname, ":~:.")  -- Try relative to cwd first
+    local relative = vim.fn.fnamemodify(bufname, ":~:.") -- Try relative to cwd first
     if vim.fn.stridx(relative, "..") == 0 then
       -- If relative to cwd goes up, use absolute relative to root
-      relative = bufname:sub(#root + 2)  -- +2 to skip the / after root
+      relative = bufname:sub(#root + 2) -- +2 to skip the / after root
     end
     return relative
   else
@@ -558,7 +569,7 @@ end
 local function collect_all_comments()
   local all_comments = {}
   local common_root = nil
-  
+
   for bufnr, comments in pairs(M.state) do
     -- Get file info for this buffer
     local bufname = vim.api.nvim_buf_get_name(bufnr)
@@ -567,7 +578,7 @@ local function collect_all_comments()
       filename = "untitled"
       bufname = "untitled"
     end
-    
+
     local root_dir = find_project_root(bufname)
     if root_dir then
       if not common_root then
@@ -577,9 +588,9 @@ local function collect_all_comments()
         common_root = root_dir
       end
     end
-    
+
     local relative_path = get_export_path(bufnr)
-    
+
     -- Add each comment with file info
     for _, comment in ipairs(comments) do
       table.insert(all_comments, {
@@ -597,7 +608,7 @@ local function collect_all_comments()
       })
     end
   end
-  
+
   -- Sort by filepath then by start line
   table.sort(all_comments, function(a, b)
     if a.relative_path ~= b.relative_path then
@@ -605,7 +616,7 @@ local function collect_all_comments()
     end
     return a.start_lnum < b.start_lnum
   end)
-  
+
   return all_comments, common_root
 end
 
@@ -614,7 +625,7 @@ end
 ---@return boolean success
 function M.export_comments(bufnr)
   local all_comments, common_root
-  
+
   if bufnr then
     -- Export only specific buffer
     bufnr = normalize_bufnr(bufnr)
@@ -626,7 +637,7 @@ function M.export_comments(bufnr)
     end
     local relative_path = get_export_path(bufnr)
     local root_dir = find_project_root(bufname)
-    
+
     local comments = M.get_all_comments(bufnr)
     all_comments = {}
     for _, comment in ipairs(comments) do
@@ -654,15 +665,17 @@ function M.export_comments(bufnr)
     vim.notify("No comments to export", vim.log.levels.WARN)
     return false
   end
-  
+
   -- Count unique files
   local files = {}
   for _, c in ipairs(all_comments) do
     files[c.relative_path] = true
   end
   local file_count = 0
-  for _ in pairs(files) do file_count = file_count + 1 end
-  
+  for _ in pairs(files) do
+    file_count = file_count + 1
+  end
+
   ---@type ExportContext
   local context = {
     comments = all_comments,
@@ -689,7 +702,7 @@ function M.export_comments(bufnr)
         table.insert(lines, "File: " .. comment.relative_path)
         table.insert(lines, "")
       end
-      
+
       local location
       if comment.start_lnum == comment.end_lnum then
         location = string.format("Line %d", comment.start_lnum)
@@ -708,8 +721,10 @@ function M.export_comments(bufnr)
   -- Copy to clipboard
   vim.fn.setreg("+", formatted)
   vim.fn.setreg('"', formatted)
-  vim.notify(string.format("Exported %d comment(s) from %d file(s) to clipboard", 
-    #all_comments, file_count), vim.log.levels.INFO)
+  vim.notify(
+    string.format("Exported %d comment(s) from %d file(s) to clipboard", #all_comments, file_count),
+    vim.log.levels.INFO
+  )
   return true
 end
 

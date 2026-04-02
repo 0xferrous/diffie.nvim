@@ -258,8 +258,24 @@ describe("comments state management", function()
     it("exports comments with default format", function()
       -- Manually set up comments to avoid rendering issues in headless mode
       comments.state[bufnr] = {
-        { id = 1, text = {"Check for nil"}, author = "You", timestamp = os.time(), collapsed = false, start_lnum = 5, end_lnum = 5 },
-        { id = 2, text = {"Refactor this block"}, author = "You", timestamp = os.time(), collapsed = false, start_lnum = 10, end_lnum = 15 },
+        {
+          id = 1,
+          text = { "Check for nil" },
+          author = "You",
+          timestamp = os.time(),
+          collapsed = false,
+          start_lnum = 5,
+          end_lnum = 5,
+        },
+        {
+          id = 2,
+          text = { "Refactor this block" },
+          author = "You",
+          timestamp = os.time(),
+          collapsed = false,
+          start_lnum = 10,
+          end_lnum = 15,
+        },
       }
 
       -- Get the formatted output by checking what was set to registers
@@ -281,7 +297,15 @@ describe("comments state management", function()
       })
 
       comments.state[bufnr] = {
-        { id = 1, text = {"Test"}, author = "You", timestamp = os.time(), collapsed = false, start_lnum = 1, end_lnum = 1 },
+        {
+          id = 1,
+          text = { "Test" },
+          author = "You",
+          timestamp = os.time(),
+          collapsed = false,
+          start_lnum = 1,
+          end_lnum = 1,
+        },
       }
       comments.export_comments(bufnr)
 
@@ -292,12 +316,20 @@ describe("comments state management", function()
     it("joins multiline comment text with spaces", function()
       -- Reset config to default before this test
       comments.set_config({ sign_column = true })
-      
+
       comments.state[bufnr] = {
-        { id = 1, text = {"Line one", "Line two", "Line three"}, author = "You", timestamp = os.time(), collapsed = false, start_lnum = 3, end_lnum = 3 },
+        {
+          id = 1,
+          text = { "Line one", "Line two", "Line three" },
+          author = "You",
+          timestamp = os.time(),
+          collapsed = false,
+          start_lnum = 3,
+          end_lnum = 3,
+        },
       }
       local result = comments.export_comments(bufnr)
-      
+
       assert.is_true(result)
       local clipboard = vim.fn.getreg('"')
       -- Should contain the intro text and the comment

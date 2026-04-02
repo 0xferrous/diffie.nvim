@@ -36,6 +36,21 @@ jobs:
             -c "PlenaryBustedDirectory tests/ {minimal_init = 'tests/minimal_init.lua'}" \
             -c "qa!"
 
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stylua
+        run: |
+          curl -sL -o stylua.tar.gz https://github.com/JohnnyMorganz/stylua/releases/latest/download/stylua-linux-x86_64.zip
+          unzip stylua.tar.gz -d /usr/local/bin
+          chmod +x /usr/local/bin/stylua
+          stylua --version
+
+      - name: Check formatting
+        run: stylua --check lua/ tests/
+
   lint:
     runs-on: ubuntu-latest
     steps:

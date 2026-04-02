@@ -40,3 +40,11 @@ lint:
 # Clean up generated files
 clean:
     @echo "Nothing to clean"
+
+# Format Lua files with stylua
+format:
+    stylua lua/ tests/
+
+# Check formatting (CI)
+check-format:
+    stylua --check lua/ tests/
