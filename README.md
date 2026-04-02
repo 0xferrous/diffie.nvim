@@ -21,18 +21,26 @@ Add review comments directly in your code. Inspired by GitHub PR review comments
 {
     "0xferrous/diffie.nvim",
     opts = {
-        -- Custom export format
+        -- Custom export format - exports comments from ALL open buffers
         export_format = function(ctx)
             -- ctx contains:
-            --   comments: array of { id, text[], author, timestamp, collapsed, start_lnum, end_lnum }
-            --   filename: "main.lua"
-            --   filepath: "/home/user/project/src/main.lua"
-            --   relative_path: "src/main.lua"
-            --   root_dir: "/home/user/project"
+            --   comments: array of comment objects with file info
+            --       { id, text[], author, timestamp, collapsed, start_lnum, end_lnum,
+            --         filename, filepath, relative_path, bufnr }
+            --   root_dir: project root directory (e.g., "/home/user/project")
+            --   total_comments: total number of comments across all files
+            --   total_files: number of files with comments
             local lines = {}
-            table.insert(lines, "Reviewing " .. ctx.relative_path .. ":")
-            for i, c in ipairs(ctx.comments) do
-                table.insert(lines, i .. ". Line " .. c.start_lnum .. ": " .. c.text[1])
+            table.insert(lines, "Reviewed " .. ctx.total_files .. " file(s) with " .. ctx.total_comments .. " comments:")
+            
+            local current_file = nil
+            for _, c in ipairs(ctx.comments) do
+                if c.relative_path ~= current_file then
+                    current_file = c.relative_path
+                    table.insert(lines, "")
+                    table.insert(lines, "File: " .. current_file)
+                end
+                table.insert(lines, "  - Line " .. c.start_lnum .. ": " .. c.text[1])
             end
             return table.concat(lines, "\n")
         end,
@@ -115,19 +123,27 @@ require("diffie").setup({
     
     -- Custom export format (optional)
     -- Function receives a context table with:
-    --   - comments: array of comment objects { id, text[], author, timestamp, collapsed, start_lnum, end_lnum }
-    --   - filename: just the filename (e.g., "main.lua")
-    --   - filepath: full absolute path (e.g., "/home/user/project/src/main.lua")
-    --   - relative_path: path from project root (e.g., "src/main.lua")
+    --   - comments: array of comment objects with file info:
+    --       { id, text[], author, timestamp, collapsed, start_lnum, end_lnum,
+    --         filename, filepath, relative_path, bufnr }
     --   - root_dir: project root directory or nil
+    --   - total_comments: total number of comments across all files
+    --   - total_files: number of files with comments
     export_format = function(ctx)
         local lines = {}
-        table.insert(lines, "Review comments for " .. ctx.filename .. ":")
-        for i, c in ipairs(ctx.comments) do
+        table.insert(lines, "Reviewed " .. ctx.total_files .. " file(s) with " .. ctx.total_comments .. " comments:")
+        
+        local current_file = nil
+        for _, c in ipairs(ctx.comments) do
+            if c.relative_path ~= current_file then
+                current_file = c.relative_path
+                table.insert(lines, "")
+                table.insert(lines, "File: " .. current_file)
+            end
             local range = c.start_lnum == c.end_lnum 
-                and tostring(c.start_lnum)
-                or (c.start_lnum .. "-" .. c.end_lnum)
-            table.insert(lines, i .. ". Line " .. range .. ": " .. table.concat(c.text, " "))
+                and ("Line " .. c.start_lnum)
+                or ("Lines " .. c.start_lnum .. "-" .. c.end_lnum)
+            table.insert(lines, "  - " .. range .. ": " .. table.concat(c.text, " "))
         end
         return table.concat(lines, "\n")
     end,
@@ -155,17 +171,22 @@ require("diffie").setup({
 
 ## Export to Clipboard
 
-Export all comments in the current buffer to clipboard with `<leader>cx`. The default format uses the file path relative to the project root (detected via `.git`, `.jj`, `.hg`, `.svn`, `package.json`, `Cargo.toml`, `go.mod`, `pyproject.toml`, or `Makefile`):
+Export **all comments from all open buffers** to clipboard with `<leader>cx`. The default format groups comments by file:
 
 ```
 I reviewed your code and have the following comments. Please address them.
 
-1. `src/utils/helpers.js:5` - Check for nil here
-2. `src/utils/helpers.js:10-15` - Refactor this block into smaller functions
-3. `src/utils/helpers.js:20` - Add error handling
+File: src/utils/helpers.js
+  - Line 5: Check for nil here
+  - Lines 10-15: Refactor this block into smaller functions
+  - Line 20: Add error handling
+
+File: src/main.js
+  - Line 3: Import order is wrong
+  - Line 45: Extract this to a constant
 ```
 
-If no project root is found, falls back to just the filename.
+Project root is detected via `.git`, `.jj`, `.hg`, `.svn`, `package.json`, `Cargo.toml`, `go.mod`, `pyproject.toml`, or `Makefile`.
 
 Customize the format with the `export_format` configuration option (see Configuration above).
 

@@ -533,43 +533,142 @@ function M.get_all_comments(bufnr)
   return result
 end
 
+---@class CommentWithFile
+---@field id integer
+---@field text string[]
+---@field author string
+---@field timestamp number
+---@field collapsed boolean
+---@field start_lnum integer
+---@field end_lnum integer
+---@field filename string Just the filename
+---@field filepath string Full absolute path
+---@field relative_path string Path relative to project root
+---@field bufnr integer Buffer number
+
 ---@class ExportContext
----@field comments Comment[] Array of comment objects
----@field filename string Just the filename (e.g., "main.lua")
----@field filepath string Full absolute path (e.g., "/home/user/project/src/main.lua")
----@field relative_path string Path relative to project root (e.g., "src/main.lua")
+---@field comments CommentWithFile[] Array of comment objects with file info
 ---@field root_dir string|nil Project root directory or nil if not found
+---@field total_comments integer Total number of comments across all files
+---@field total_files integer Number of files with comments
+
+---Collect all comments from all buffers
+---@return CommentWithFile[] all_comments
+---@return string|nil root_dir
+local function collect_all_comments()
+  local all_comments = {}
+  local common_root = nil
+  
+  for bufnr, comments in pairs(M.state) do
+    -- Get file info for this buffer
+    local bufname = vim.api.nvim_buf_get_name(bufnr)
+    local filename = vim.fn.fnamemodify(bufname, ":t")
+    if filename == "" then
+      filename = "untitled"
+      bufname = "untitled"
+    end
+    
+    local root_dir = find_project_root(bufname)
+    if root_dir then
+      if not common_root then
+        common_root = root_dir
+      elseif #root_dir < #common_root then
+        -- Use the shortest root (most specific)
+        common_root = root_dir
+      end
+    end
+    
+    local relative_path = get_export_path(bufnr)
+    
+    -- Add each comment with file info
+    for _, comment in ipairs(comments) do
+      table.insert(all_comments, {
+        id = comment.id,
+        text = comment.text,
+        author = comment.author,
+        timestamp = comment.timestamp,
+        collapsed = comment.collapsed,
+        start_lnum = comment.start_lnum,
+        end_lnum = comment.end_lnum,
+        filename = filename,
+        filepath = bufname,
+        relative_path = relative_path,
+        bufnr = bufnr,
+      })
+    end
+  end
+  
+  -- Sort by filepath then by start line
+  table.sort(all_comments, function(a, b)
+    if a.relative_path ~= b.relative_path then
+      return a.relative_path < b.relative_path
+    end
+    return a.start_lnum < b.start_lnum
+  end)
+  
+  return all_comments, common_root
+end
 
 ---Export comments to clipboard
----@param bufnr integer|nil
+---@param bufnr integer|nil Optional buffer to export (exports all if nil)
 ---@return boolean success
 function M.export_comments(bufnr)
-  bufnr = normalize_bufnr(bufnr)
-  local comments = M.get_all_comments(bufnr)
+  local all_comments, common_root
+  
+  if bufnr then
+    -- Export only specific buffer
+    bufnr = normalize_bufnr(bufnr)
+    local bufname = vim.api.nvim_buf_get_name(bufnr)
+    local filename = vim.fn.fnamemodify(bufname, ":t")
+    if filename == "" then
+      filename = "untitled"
+      bufname = "untitled"
+    end
+    local relative_path = get_export_path(bufnr)
+    local root_dir = find_project_root(bufname)
+    
+    local comments = M.get_all_comments(bufnr)
+    all_comments = {}
+    for _, comment in ipairs(comments) do
+      table.insert(all_comments, {
+        id = comment.id,
+        text = comment.text,
+        author = comment.author,
+        timestamp = comment.timestamp,
+        collapsed = comment.collapsed,
+        start_lnum = comment.start_lnum,
+        end_lnum = comment.end_lnum,
+        filename = filename,
+        filepath = bufname,
+        relative_path = relative_path,
+        bufnr = bufnr,
+      })
+    end
+    common_root = root_dir
+  else
+    -- Export all buffers
+    all_comments, common_root = collect_all_comments()
+  end
 
-  if #comments == 0 then
+  if #all_comments == 0 then
     vim.notify("No comments to export", vim.log.levels.WARN)
     return false
   end
-
-  -- Gather file context
-  local bufname = vim.api.nvim_buf_get_name(bufnr)
-  local filename = vim.fn.fnamemodify(bufname, ":t")
-  if filename == "" then
-    filename = "untitled"
-    bufname = "untitled"
-  end
   
-  local root_dir = find_project_root(bufname)
-  local relative_path = get_export_path(bufnr)
+  -- Count unique files
+  local files = {}
+  for _, c in ipairs(all_comments) do
+    files[c.relative_path] = true
+  end
+  local file_count = 0
+  for _ in pairs(files) do file_count = file_count + 1 end
   
   ---@type ExportContext
   local context = {
-    comments = comments,
-    filename = filename,
-    filepath = bufname,
-    relative_path = relative_path,
-    root_dir = root_dir,
+    comments = all_comments,
+    root_dir = common_root,
+    total_comments = #all_comments,
+    total_files = file_count,
   }
 
   local formatted
@@ -581,17 +680,26 @@ function M.export_comments(bufnr)
     table.insert(lines, "I reviewed your code and have the following comments. Please address them.")
     table.insert(lines, "")
 
-    for i, comment in ipairs(comments) do
+    local current_file = nil
+    for i, comment in ipairs(all_comments) do
+      -- Add file header when file changes
+      if comment.relative_path ~= current_file then
+        current_file = comment.relative_path
+        table.insert(lines, "")
+        table.insert(lines, "File: " .. comment.relative_path)
+        table.insert(lines, "")
+      end
+      
       local location
       if comment.start_lnum == comment.end_lnum then
-        location = string.format("`%s:%d`", relative_path, comment.start_lnum)
+        location = string.format("Line %d", comment.start_lnum)
       else
-        location = string.format("`%s:%d-%d`", relative_path, comment.start_lnum, comment.end_lnum)
+        location = string.format("Lines %d-%d", comment.start_lnum, comment.end_lnum)
       end
 
-      -- Join comment text with spaces to make it a single line description
+      -- Join comment text with spaces
       local content = table.concat(comment.text, " ")
-      table.insert(lines, string.format("%d. %s - %s", i, location, content))
+      table.insert(lines, string.format("  - %s: %s", location, content))
     end
 
     formatted = table.concat(lines, "\n")
@@ -600,7 +708,8 @@ function M.export_comments(bufnr)
   -- Copy to clipboard
   vim.fn.setreg("+", formatted)
   vim.fn.setreg('"', formatted)
-  vim.notify("Exported " .. #comments .. " comment(s) to clipboard", vim.log.levels.INFO)
+  vim.notify(string.format("Exported %d comment(s) from %d file(s) to clipboard", 
+    #all_comments, file_count), vim.log.levels.INFO)
   return true
 end
 

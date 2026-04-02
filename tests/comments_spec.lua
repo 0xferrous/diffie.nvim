@@ -267,16 +267,16 @@ describe("comments state management", function()
 
       local clipboard = vim.fn.getreg('"')
       assert.is_truthy(clipboard:find("I reviewed your code"))
-      assert.is_truthy(clipboard:find("1%."))
+      assert.is_truthy(clipboard:find("File:"))
       assert.is_truthy(clipboard:find("Check for nil"))
-      assert.is_truthy(clipboard:find("2%."))
       assert.is_truthy(clipboard:find("Refactor this block"))
     end)
 
     it("uses custom export_format when provided", function()
       comments.set_config({
         export_format = function(ctx)
-          return "CUSTOM: " .. #ctx.comments .. " comments, file: " .. ctx.filename
+          -- ctx has comments with file info, total_comments, total_files, root_dir
+          return "CUSTOM: " .. ctx.total_comments .. " comments in " .. ctx.total_files .. " files"
         end,
       })
 
@@ -286,8 +286,7 @@ describe("comments state management", function()
       comments.export_comments(bufnr)
 
       local clipboard = vim.fn.getreg('"')
-      assert.is_truthy(clipboard:find("CUSTOM: 1 comments"))
-      assert.is_truthy(clipboard:find("file:"))
+      assert.is_truthy(clipboard:find("CUSTOM: 1 comments in 1 files"))
     end)
 
     it("joins multiline comment text with spaces", function()
