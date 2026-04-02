@@ -201,24 +201,21 @@ function Renderer.render_expanded(bufnr, comment, stack_position)
   end
 
   -- Header with range info
-  local range_str = comment.start_lnum == comment.end_lnum and "" or (" [lines " .. comment.start_lnum .. "-" .. comment.end_lnum .. "]")
+  local range_str = comment.start_lnum == comment.end_lnum and "" or ("[lines " .. comment.start_lnum .. "-" .. comment.end_lnum .. "]")
   table.insert(lines, {
-    { "┌─ ", "DiffieCommentBorder" },
+    { " ┌ ", "DiffieCommentBorder" },
     { range_str, "DiffieCommentBorder" },
     { comment.resolved and " ✓" or "", "DiffieCommentResolved" },
   })
 
   -- Body
   for i, line in ipairs(comment.text) do
-    local prefix = i == #comment.text and "└─ " or "│  "
+    local prefix = i == #comment.text and " └ " or " │ "
     table.insert(lines, {
       { prefix, "DiffieCommentBorder" },
       { line, hl_group },
     })
   end
-
-  -- Empty separator after each comment
-  table.insert(lines, { { "", "Normal" } })
 
   local id = vim.api.nvim_buf_set_extmark(bufnr, ns, comment.end_lnum - 1, 0, {
     virt_lines = lines,

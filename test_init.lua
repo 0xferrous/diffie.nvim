@@ -38,7 +38,7 @@ comments.add_comment(bufnr, 2, 4, "Should throw error instead of returning nil",
   collapsed = true,
 })
 
-comments.add_comment(bufnr, 6, 9, "Extract email logic to separate function", {
+comments.add_comment(bufnr, 6, 9, "Extract email logic to separate function\nThis violates SRP and makes testing difficult\nConsider: extract into sendUserEmail(user)", {
   collapsed = true,
 })
 
