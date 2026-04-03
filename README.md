@@ -180,6 +180,36 @@ require("diffie").setup({
 })
 ```
 
+## Styling
+
+By default, diffie.nvim links to standard Neovim highlight groups so it automatically matches your colorscheme. You can override these if needed:
+
+```lua
+-- Default links (no config needed - they just work with your theme)
+-- DiffieComment -> NormalFloat
+-- DiffieCommentBorder -> FloatBorder
+-- DiffieCommentMeta -> NonText
+-- DiffieCommentMultiple -> DiagnosticWarn
+-- DiffieCommentRange -> Folded
+
+-- Override with custom colors
+vim.api.nvim_set_hl(0, "DiffieComment", { fg = "#e6edf3", bg = "#1e2530" })
+vim.api.nvim_set_hl(0, "DiffieCommentBorder", { fg = "#58a6ff" })
+vim.api.nvim_set_hl(0, "DiffieCommentMeta", { fg = "#8b949e" })
+vim.api.nvim_set_hl(0, "DiffieCommentMultiple", { fg = "#f0883e" }) -- Overlaps indicator
+vim.api.nvim_set_hl(0, "DiffieCommentRange", { bg = "#161b22" })    -- Range highlight
+```
+
+**Available highlight groups:**
+
+| Group | Default Link | Used For |
+|-------|--------------|----------|
+| `DiffieComment` | `NormalFloat` | Comment text content |
+| `DiffieCommentBorder` | `FloatBorder` | Box drawing characters (┌, └, │) and headers |
+| `DiffieCommentMeta` | `NonText` | Metadata like "(+2 lines)" and line numbers |
+| `DiffieCommentMultiple` | `DiagnosticWarn` | Sign column when multiple comments overlap |
+| `DiffieCommentRange` | `Folded` | Background highlight for commented line ranges |
+
 ## Export to Clipboard
 
 Export **all comments from all open buffers** to clipboard with `<leader>cx`. The default format groups comments by file:

@@ -736,13 +736,15 @@ function M.clear_buffer(bufnr)
   Renderer.clear(bufnr)
 end
 
----Setup highlight groups
+---Setup highlight groups (link to standard groups for theme compatibility)
 function M.setup_highlights()
-  vim.api.nvim_set_hl(0, "DiffieComment", { fg = "#e6edf3", bg = "#161b22" })
-  vim.api.nvim_set_hl(0, "DiffieCommentBorder", { fg = "#58a6ff", bg = "#161b22" })
-  vim.api.nvim_set_hl(0, "DiffieCommentMeta", { fg = "#8b949e", bg = "#161b22" })
-  vim.api.nvim_set_hl(0, "DiffieCommentMultiple", { fg = "#f0883e", bg = "#161b22" }) -- Orange for overlaps
-  vim.api.nvim_set_hl(0, "DiffieCommentRange", { bg = "#1e2530" })
+  -- Link to standard highlight groups so they inherit user's theme colors
+  -- Users can override these in their config if desired
+  vim.api.nvim_set_hl(0, "DiffieComment", { link = "NormalFloat" })
+  vim.api.nvim_set_hl(0, "DiffieCommentBorder", { link = "FloatBorder" })
+  vim.api.nvim_set_hl(0, "DiffieCommentMeta", { link = "NonText" })
+  vim.api.nvim_set_hl(0, "DiffieCommentMultiple", { link = "DiagnosticWarn" })
+  vim.api.nvim_set_hl(0, "DiffieCommentRange", { link = "Folded" })
 end
 
 -- Expose internals for testing
