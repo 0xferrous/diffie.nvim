@@ -1,11 +1,14 @@
 local M = {}
 
 local comments = require("diffie.comments")
+local themes = require("diffie.themes")
 
 --- Default configuration
 M.config = {
   enabled = true,
   sign_column = true, -- Show sign column indicators
+  -- Theme: preset name ("default", "gruvbox_dark_hard", etc.) or custom table
+  theme = "default",
   -- Keymap configuration: set to false to disable a keymap, or change the keys
   keymaps = {
     add = "<leader>ca", -- Add comment (normal: current line, visual: selection)
@@ -28,7 +31,7 @@ function M.setup(opts)
     return
   end
 
-  comments.setup_highlights()
+  comments.setup_highlights(M.config.theme)
   comments.set_config({
     sign_column = M.config.sign_column,
     export_format = M.config.export_format,

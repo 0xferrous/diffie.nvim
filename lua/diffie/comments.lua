@@ -736,15 +736,11 @@ function M.clear_buffer(bufnr)
   Renderer.clear(bufnr)
 end
 
----Setup highlight groups (link to standard groups for theme compatibility)
-function M.setup_highlights()
-  -- Link to standard highlight groups so they inherit user's theme colors
-  -- Users can override these in their config if desired
-  vim.api.nvim_set_hl(0, "DiffieComment", { link = "NormalFloat" })
-  vim.api.nvim_set_hl(0, "DiffieCommentBorder", { link = "FloatBorder" })
-  vim.api.nvim_set_hl(0, "DiffieCommentMeta", { link = "NonText" })
-  vim.api.nvim_set_hl(0, "DiffieCommentMultiple", { link = "DiagnosticWarn" })
-  vim.api.nvim_set_hl(0, "DiffieCommentRange", { link = "Folded" })
+---Setup highlight groups
+---@param theme string|table|nil Theme name or custom theme table
+function M.setup_highlights(theme)
+  local themes = require("diffie.themes")
+  themes.apply(theme or "default")
 end
 
 -- Expose internals for testing
